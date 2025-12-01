@@ -65,8 +65,8 @@ def load_predicciones(path_csv: str):
     return df
 
 #Rutas de los archivos
-RUTA_CUADRANTES = "/Users/rodrigocolin/Desktop/Tec/Septimo semestre/Omar/Programación/ProyectoThales/bases_de_datos/cuadrantes.csv"
-RUTA_PREDICCIONES = "/Users/rodrigocolin/Desktop/Tec/Septimo semestre/Omar/Programación/ProyectoThales/bases_de_datos/predicciones_xgb.csv"
+RUTA_CUADRANTES = "bases_de_datos/cuadrantes.csv"
+RUTA_PREDICCIONES = "bases_de_datos/predicciones_xgb.csv"
 
 #Cargar los mapas y predicciones
 try:
