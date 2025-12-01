@@ -35,8 +35,7 @@ with col_btns:
 # ================================
 #   1. SUBIR DOCUMENTOS DESDE CARPETA
 # ================================
-folder_path = r"/Users/rodrigocolin/Desktop/Tec/Septimo semestre/Omar/Programación/ProyectoThales/archivos_chatbot"
-
+folder_path =  "bases_de_datos/chatbot_files"  
 if "vector_store_id" not in st.session_state:
 
     # Crear vector store vacío una vez
