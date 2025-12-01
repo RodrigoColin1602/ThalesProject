@@ -58,10 +58,10 @@ st.markdown("---")
 
 # ================== CARGA DE DATOS ==================
 df_agrupado = pd.read_csv(
-    "/Users/rodrigocolin/Desktop/Tec/Septimo semestre/Omar/Programación/ProyectoThales/bases_de_datos/clustering_alcaldias.csv"
+    "bases_de_datos/clustering_alcaldias.csv"
 )
 df_centroids = pd.read_csv(
-    "/Users/rodrigocolin/Desktop/Tec/Septimo semestre/Omar/Programación/ProyectoThales/bases_de_datos/clustering_centroides.csv"
+    "bases_de_datos/clustering_centroides.csv"
 )
 
 # ================= TABLA RESUMEN: ALCALDÍA → CLÚSTER =================
