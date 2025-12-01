@@ -1,0 +1,7 @@
+# Archivos de Streamlit con claves
+.streamlit/secrets.toml
+
+# Archivos de entorno virtual y sistema
+.venv/
+__pycache__/
+*.DS_Store
