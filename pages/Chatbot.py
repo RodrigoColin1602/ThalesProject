@@ -73,18 +73,17 @@ else:
 # ================================
 @st.cache_data
 def cargar_base():
+    # Ruta relativa correcta
     file_path = "archivos_chatbot/BASE_DE_DATOS.csv"
 
-    # OJO: usamos encoding="utf-8-sig" para quitar el BOM
-    df = pd.read_csv(file_path, sep=";", encoding="utf-8-sig")
+    # CAMBIO AQUÍ: Usamos "latin-1" para que lea bien los acentos de Excel
+    df = pd.read_csv(file_path, sep=";", encoding="latin-1")
 
     # Por si ya quedó leída con el nombre raro, lo corregimos:
     if "ï»¿anio" in df.columns and "anio" not in df.columns:
         df = df.rename(columns={"ï»¿anio": "anio"})
 
     return df
-
-df = cargar_base()
 
 
 ### DETECTAR PREGUNTAS NÚMERICAS Y RESPUESTAS EN TEXTO NORMAL DEL CSV.
