@@ -118,14 +118,18 @@ DIAS_MAP = {
     "DOMINGO": "DOMINGO",
 }
 
-def normalizar_df_base(df: pd.DataFrame) -> pd.DataFrame:
-    df_norm = df.copy()
-    for col in ["alcaldia", "mes", "dia", "tipo_robo", "colonia"]:
-        if col in df_norm.columns:
-            df_norm[col] = df_norm[col].astype(str).str.strip().str.upper()
-    return df_norm
-
-df_norm_global = normalizar_df_base(df)
+def normalizar_df_base(df):
+    """
+    Normaliza los nombres de las columnas para evitar errores de mayúsculas/espacios.
+    """
+    # Convertir nombres de columnas a minúsculas y reemplazar espacios por guiones bajos
+    df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+    
+    # Asegurar que las fechas sean datetime (si existe la columna fecha_hecho)
+    if 'fecha_hecho' in df.columns:
+        df['fecha_hecho'] = pd.to_datetime(df['fecha_hecho'], errors='coerce')
+        
+    return df
 
 
 def responder_desde_csv(prompt: str, df_norm: pd.DataFrame) -> str | None:
