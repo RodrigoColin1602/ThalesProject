@@ -73,7 +73,7 @@ else:
 # ================================
 @st.cache_data
 def cargar_base():
-    file_path = os.path.join(folder_path, "BASE_DE_DATOS.csv")
+    file_path = "archivos_chatbot/BASE_DE_DATOS.csv"
 
     # OJO: usamos encoding="utf-8-sig" para quitar el BOM
     df = pd.read_csv(file_path, sep=";", encoding="utf-8-sig")
