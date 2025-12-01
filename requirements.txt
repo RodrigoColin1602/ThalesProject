@@ -130,3 +130,15 @@ websocket-client==1.9.0
 widgetsnbextension==4.0.15
 folium
 streamlit-folium
+streamlit
+pandas
+numpy
+matplotlib
+seaborn
+altair
+folium
+streamlit-folium
+geopandas
+shapely
+plotly
+branca
