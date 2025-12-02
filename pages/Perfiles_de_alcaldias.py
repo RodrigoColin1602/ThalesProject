@@ -1,376 +1,327 @@
-import streamlit as st          
-import pandas as pd             
-import matplotlib.pyplot as plt 
+import streamlit as st
+import pandas as pd
 import plotly.graph_objects as go
-import seaborn as sns           
-import altair as alt            
-import numpy as np
+import altair as alt
 from theme_config import inject_custom_css, CUSTOM_THEME
 
-# SIEMPRE LO PRIMERO EN LA PÁGINA
+# ==========================================
+# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS
+# ==========================================
 st.set_page_config(
-    page_title="Perfiles de alcaldías",
+    page_title="Dashboard de Clustering: Alcaldías y Colonias",
     layout="wide"
 )
 
 # Aplicar estilos globales
 inject_custom_css(CUSTOM_THEME)
 
+# Paleta de colores compartida (usada para mapear 0->Gris, 1->Azul Claro, etc.)
 PALETA_IDS = {
-    "Muy bajo":  "#808080",
-    "Bajo":      "#BBC6FC",
-    "Medio":     "#637CF8",
-    "Alto":      "#0929C8",
-    "Muy alto":  "#000275",
-    "SIN CLASIFICAR":  "#95A5A6",
+    "Muy bajo":  "#808080",  # Cluster 0
+    "Bajo":      "#57A5F8",  # Cluster 1
+    "Medio":     "#041A88",  # Cluster 2
+    "Alto":      "#0929C8",  # Cluster 3
+    "Muy alto":  "#5255FC",  # Cluster 4
 }
 
-CLUSTER_COLORS = [
-    PALETA_IDS["Muy bajo"],
-    PALETA_IDS["Bajo"],
-    PALETA_IDS["Medio"],
-    PALETA_IDS["Alto"],
-    PALETA_IDS["Muy alto"],
-]
+# Lista ordenada de colores
+CLUSTER_COLORS = list(PALETA_IDS.values())
 
-# Bloqueo de acceso si no hay sesión activa
+# ==========================================
+# 2. CONTROL DE SESIÓN
+# ==========================================
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.warning("Acceso restringido. Por favor inicia sesión desde la página principal.")
     st.stop()
 
-if st.session_state["role"] not in ["viewer"]:
+if st.session_state["role"] not in ["viewer", "analyst"]:
     st.error("No tienes permiso para acceder a este módulo.")
     st.stop()
 
-# ====== Barra superior de navegación (Regresar / Cerrar sesión) ======
+# Barra superior de navegación
 top_left, top_center, top_right = st.columns([1, 5, 1])
-
 with top_left:
     if st.button("Regresar", use_container_width=True):
         st.switch_page("pages/Dashboard_usuario.py")
-
 with top_right:
     if st.button("Cerrar sesión", use_container_width=True):
         st.session_state.clear()
         st.switch_page("pages/Login.py")
 
+st.title("Análisis de Clustering: Segmentación Territorial")
 st.markdown("---")
 
-# ================== CARGA DE DATOS ==================
-df_agrupado = pd.read_csv(
-    "bases_de_datos/clustering_alcaldias.csv"
-)
-df_centroids = pd.read_csv(
-    "bases_de_datos/clustering_centroides.csv"
-)
+# ==========================================
+# 3. CREACIÓN DE PESTAÑAS
+# ==========================================
+tab_alcaldias, tab_colonias = st.tabs(["Alcaldías", "Nivel Colonias"])
 
-# ================= TABLA RESUMEN: ALCALDÍA → CLÚSTER =================
-tabla_clusters = (
-    df_agrupado[["alcaldia", "cluster"]]
-    .sort_values("cluster")
-    .reset_index(drop=True)
-)
-tabla_clusters["Centro"] = "C" + tabla_clusters["cluster"].astype(str)
+# ==============================================================================
+# PESTAÑA 1: CLUSTERING DE ALCALDÍAS
+# ==============================================================================
+with tab_alcaldias:
+    st.subheader("Perfiles de Alcaldías (Cámaras vs. Delitos vs. IDS)")
+    
+    # --- Carga de datos Alcaldías ---
+    try:
+        df_alc = pd.read_csv("bases_de_datos/clustering_alcaldias.csv")
+        cent_alc = pd.read_csv("bases_de_datos/clustering_centroides.csv")
+    except FileNotFoundError:
+        st.error("⚠️ No se encontraron los archivos de Alcaldías en 'bases_de_datos/'.")
+        st.stop()
 
-# Asegurar que cluster sea string
-df_agrupado["cluster_str"] = df_agrupado["cluster"].astype(str)
+    # Preprocesamiento Alcaldías
+    tabla_clusters_alc = df_alc[["alcaldia", "cluster"]].sort_values("cluster").reset_index(drop=True)
+    tabla_clusters_alc["Centro"] = "C" + tabla_clusters_alc["cluster"].astype(str)
+    
+    df_alc["cluster_str"] = df_alc["cluster"].astype(str)
+    
+    # Preprocesamiento Centroides
+    cent_alc_proc = cent_alc.copy()
+    cent_alc_proc["cluster"] = cent_alc_proc.index
+    cent_alc_proc["cluster_str"] = cent_alc_proc["cluster"].astype(str)
+    cent_alc_proc["label"] = "C" + cent_alc_proc["cluster_str"]
 
-# Número de clusters detectados (solo para el título)
-K_OPTIMO = df_agrupado["cluster"].nunique()
+    # Dominio fijo para colores
+    domain_alc = sorted(df_alc["cluster_str"].unique())
+    K_OPTIMO_ALC = df_alc["cluster"].nunique()
 
-centroids_alt = df_centroids.copy()
-centroids_alt["cluster_str"] = centroids_alt.index.astype(str)
-centroids_alt["label"] = "C" + centroids_alt["cluster_str"]
+    # --- Filtros 2D Alcaldías ---
+    col_f2d_alc, col_c2d_alc = st.columns([1, 3])
+    with col_f2d_alc:
+        st.markdown("#### Filtros (2D)")
+        opts_alc = ["Todos"] + [f"C{c}" for c in sorted(df_alc["cluster"].unique())]
+        sel_alc_2d = st.selectbox("Clúster:", options=opts_alc, key="sel_alc_2d")
 
-# =====================================================
-#GRÁFICA 2D 
+    if sel_alc_2d == "Todos":
+        df_p_alc = df_alc.copy()
+        c_p_alc = cent_alc_proc.copy()
+    else:
+        n_c = int(sel_alc_2d.replace("C", ""))
+        df_p_alc = df_alc[df_alc["cluster"] == n_c].copy()
+        c_p_alc = cent_alc_proc[cent_alc_proc["cluster"] == n_c].copy()
 
-st.subheader("Agrupamiento de alcaldías")
-
-col_filters_2d, col_chart_2d = st.columns([1, 3])
-
-with col_filters_2d:
-    st.markdown("#### Filtros (2D)")
-    clusters_disponibles_2d = sorted(df_agrupado["cluster"].unique())
-    opciones_clusters_2d = ["Todos"] + [f"C{c}" for c in clusters_disponibles_2d]
-
-    cluster_2d_sel = st.selectbox(
-        "Clúster para vista 2D:",
-        options=opciones_clusters_2d,
-        index=0,
-        key="cluster_2d",
-    )
-
-# Dataframes SOLO para la vista 2D
-if cluster_2d_sel == "Todos":
-    df_plot_2d = df_agrupado.copy()
-    centroids_2d = centroids_alt.copy()
-    tabla_clusters_filtrada = tabla_clusters.copy()
-else:
-    num_cluster_2d = int(cluster_2d_sel.replace("C", ""))
-    df_plot_2d = df_agrupado[df_agrupado["cluster"] == num_cluster_2d].copy()
-    centroids_2d = centroids_alt[centroids_alt["cluster_str"] == str(num_cluster_2d)].copy()
-    tabla_clusters_filtrada = tabla_clusters[tabla_clusters["cluster"] == num_cluster_2d].copy()
-
-# Scatter de alcaldías coloreadas por clúster 2D
-base_2d = (
-    alt.Chart(df_plot_2d)
-    .mark_circle(size=120, stroke="black", strokeWidth=1)
-    .encode(
-        x=alt.X(
-            "camaras_por_10k:Q",
-            title="Total cámaras instaladas"
-        ),
-        y=alt.Y(
-            "Delitos_por_10k_hab:Q",
-            title="Delitos por 10k Hab."
-        ),
+    # --- Gráfica Altair Alcaldías ---
+    base_alc = alt.Chart(df_p_alc).mark_circle(size=150, stroke="gray", strokeWidth=1).encode(
+        x=alt.X("camaras_por_10k:Q", title="Cámaras por 10k"),
+        y=alt.Y("Delitos_por_10k_hab:Q", title="Delitos por 10k Hab."),
         color=alt.Color(
-            "cluster_str:N",
-            title="Clúster",
-            scale=alt.Scale(range=CLUSTER_COLORS),
+            "cluster_str:N", 
+            scale=alt.Scale(domain=domain_alc, range=CLUSTER_COLORS), 
+            legend=None
         ),
-        tooltip=[
-            "alcaldia:N",
-            "camaras_por_10k:Q",
-            "Delitos_por_10k_hab:Q",
-            "cluster_str:N",
-        ],
+        tooltip=["alcaldia", "camaras_por_10k", "Delitos_por_10k_hab", "cluster_str"]
     )
-)
-
-#Puntos de centroides 
-centroids_points_2d = (
-    alt.Chart(centroids_2d)
-    .mark_point(size=220, shape="X")
-    .encode(
-        x="camaras_por_10k:Q",
-        y="Delitos_por_10k_hab:Q",
-        color=alt.value("black"),
-        tooltip=["label:N"],
+    
+    pt_cent_alc = alt.Chart(c_p_alc).mark_point(size=250, shape="X", color="black", filled=True).encode(
+        x="camaras_por_10k:Q", y="Delitos_por_10k_hab:Q", tooltip=["label"]
     )
-)
-
-# 
-centroids_labels_2d = (
-    alt.Chart(centroids_2d)
-    .mark_text(fontSize=14, fontWeight="bold", dy=-10)
-    .encode(
-        x="camaras_por_10k:Q",
-        y="Delitos_por_10k_hab:Q",
-        text="label:N",
-    )
-)
-
-chart_clusters_2d = (
-    base_2d + centroids_points_2d + centroids_labels_2d
-).properties(
-    width=700,
-    height=500,
-    title=f"K-Means con {K_OPTIMO} centros",
-).configure_view(
-    fill="white",
-    strokeWidth=0
-).configure(
-    background="white"
-).configure_axis(
-    labelColor="black",
-    titleColor="black",
-    gridColor="#E0E0E0",
-).configure_legend(
-    labelColor="black",
-    titleColor="black",
-).configure_title(
-    color="black"
-)
-
-with col_chart_2d:
-    st.markdown("#### Distribución de alcaldías por cámaras y delitos")
-    st.altair_chart(chart_clusters_2d, use_container_width=True, theme=None)
-
-st.markdown("---")
-st.subheader("Alcaldías por clúster")
-st.dataframe(tabla_clusters_filtrada, use_container_width=True)
-
-# =========================
-# Vista 3D del clustering
-
-st.markdown("---")
-st.subheader("Vista 3D del agrupamiento de alcaldías")
-
-# Variables de los ejes
-X_COL = "camaras_por_10k"
-Y_COL = "Delitos_por_10k_hab"
-Z_COL = "IDS"  
-
-# Paleta específica para la vista 3D
-CLUSTER_COLORS_3D = {
-    0: "#BBC6FC",  # C0
-    1: "#637CF8",  # C1
-    2: "#0929C8",  # C2
-    3: "#000275",  # C3
-    4: "#FF4B4B",  # C4 
-}
-
-col_filters_3d, col_chart_3d = st.columns([1, 3])
-
-with col_filters_3d:
-    st.markdown("#### Filtros (3D)")
-    clusters_disponibles_3d = sorted(df_agrupado["cluster"].unique())
-    opciones_centros_3d = ["Todos"] + [f"C{c}" for c in clusters_disponibles_3d]
-
-    centro_3d_sel = st.selectbox(
-        "Clúster para vista 3D:",
-        options=opciones_centros_3d,
-        index=0,
-        key="centro_3d_sel",
+    
+    lbl_cent_alc = alt.Chart(c_p_alc).mark_text(dy=-20, fontSize=14, fontWeight="bold", color="black").encode(
+        x="camaras_por_10k:Q", y="Delitos_por_10k_hab:Q", text="label"
     )
 
+    chart_alc = (base_alc + pt_cent_alc + lbl_cent_alc).properties(
+        height=500, title=f"Alcaldías: K-Means ({K_OPTIMO_ALC} grupos)"
+    ).configure(
+        background='white' # <--- FONDO BLANCO ALTAIR
+    ).configure_axis(
+        gridColor='#E0E0E0', labelColor='black', titleColor='black'
+    ).configure_view(
+        strokeWidth=0
+    ).interactive()
 
-df_3d_base = df_agrupado.copy()
-centroids_3d_base = centroids_alt.copy()
+    with col_c2d_alc:
+        st.altair_chart(chart_alc, use_container_width=True)
 
-if centro_3d_sel == "Todos":
-    df_3d = df_3d_base.copy()
-    centroids_3d = centroids_3d_base.copy()
-    tabla_clusters_3d = tabla_clusters.copy()
-else:
-    num_centro_3d = int(centro_3d_sel.replace("C", ""))
-    df_3d = df_3d_base[df_3d_base["cluster"] == num_centro_3d].copy()
-    centroids_3d = centroids_3d_base[centroids_3d_base["cluster_str"] == str(num_centro_3d)].copy()
-    tabla_clusters_3d = tabla_clusters[tabla_clusters["cluster"] == num_centro_3d].copy()
+    # --- Tabla Alcaldías ---
+    with st.expander("Ver lista de Alcaldías por grupo"):
+        st.dataframe(tabla_clusters_alc, use_container_width=True)
 
-if df_3d.empty:
-    with col_chart_3d:
-        st.info("No hay datos para este clúster en la vista 3D.")
-else:
-    # Rangos dinámicos con padding
-    x_min, x_max = df_3d[X_COL].min(), df_3d[X_COL].max()
-    y_min, y_max = df_3d[Y_COL].min(), df_3d[Y_COL].max()
-    z_min, z_max = df_3d[Z_COL].min(), df_3d[Z_COL].max()
+    # --- Vista 3D Alcaldías ---
+    st.markdown("---")
+    st.markdown("#### Vista 3D: Alcaldías")
+    
+    col_f3d_alc, col_c3d_alc = st.columns([1, 3])
+    with col_f3d_alc:
+        sel_alc_3d = st.selectbox("Resaltar Clúster 3D:", options=opts_alc, key="sel_alc_3d")
 
-    def rango_con_padding(vmin, vmax, factor=0.2, minimo=1):
-        rango = vmax - vmin
-        pad = max(rango * factor, minimo) if rango != 0 else minimo
-        return [vmin - pad, vmax + pad]
+    if sel_alc_3d == "Todos":
+        df_3d_a = df_alc.copy()
+        cent_3d_a = cent_alc_proc.copy()
+    else:
+        n_c3 = int(sel_alc_3d.replace("C", ""))
+        df_3d_a = df_alc[df_alc["cluster"] == n_c3].copy()
+        cent_3d_a = cent_alc_proc[cent_alc_proc["cluster"] == n_c3].copy()
 
-    x_range = rango_con_padding(x_min, x_max)
-    y_range = rango_con_padding(y_min, y_max)
-    z_range = rango_con_padding(z_min, z_max, factor=0.1, minimo=0.05)
+    fig_alc = go.Figure()
+    
+    color_map_3d_alc = {int(c): CLUSTER_COLORS[i] for i, c in enumerate(domain_alc) if i < len(CLUSTER_COLORS)}
 
+    for c in sorted(df_3d_a["cluster"].unique()):
+        sub = df_3d_a[df_3d_a["cluster"] == c]
+        fig_alc.add_trace(go.Scatter3d(
+            x=sub["camaras_por_10k"], y=sub["Delitos_por_10k_hab"], z=sub["IDS"],
+            mode="markers",
+            marker=dict(size=8, color=color_map_3d_alc.get(int(c), "#999"), opacity=0.9, line=dict(width=1, color='white')),
+            name=f"C{c}", text=sub["alcaldia"],
+            hovertemplate="<b>%{text}</b><br>Cam: %{x}<br>Del: %{y}<br>IDS: %{z}"
+        ))
 
-    clusters_unicos_3d = sorted(df_3d["cluster"].unique())
-    cluster_color_map_3d = {
-        c: CLUSTER_COLORS_3D.get(c, "#BBBBBB")
-        for c in clusters_unicos_3d
-    }
+    fig_alc.add_trace(go.Scatter3d(
+        x=cent_3d_a["camaras_por_10k"], y=cent_3d_a["Delitos_por_10k_hab"], z=cent_3d_a["IDS"],
+        mode="markers+text", marker=dict(size=12, color="black", symbol="x"),
+        text=cent_3d_a["label"], textposition="top center", name="Centros"
+    ))
 
-    fig_3d = go.Figure()
-
-    # Puntos de alcaldías
-    for c in clusters_unicos_3d:
-        df_c = df_3d[df_3d["cluster"] == c]
-
-        if df_c.empty:
-            continue
-
-        fig_3d.add_trace(
-            go.Scatter3d(
-                x=df_c[X_COL],
-                y=df_c[Y_COL],
-                z=df_c[Z_COL],
-                mode="markers",
-                marker=dict(
-                    size=7,
-                    color=cluster_color_map_3d[c],
-                    opacity=0.9,
-                ),
-                name=f"C{c}",
-                text=df_c["alcaldia"],
-                hovertemplate=(
-                    "<b>%{text}</b><br>"
-                    f"{X_COL}: " + "%{x:.2f}<br>"
-                    f"{Y_COL}: " + "%{y:.2f}<br>"
-                    f"{Z_COL}: " + "%{z:.2f}<extra></extra>"
-                ),
-            )
-        )
-
-    # Centroides
-    if not centroids_3d.empty:
-        fig_3d.add_trace(
-            go.Scatter3d(
-                x=centroids_3d[X_COL],
-                y=centroids_3d[Y_COL],
-                z=centroids_3d[Z_COL],
-                mode="markers+text",
-                marker=dict(
-                    size=11,
-                    color="black",
-                    symbol="x",
-                ),
-                text=centroids_3d["label"],
-                textposition="top center",
-                name="Centroides",
-                hovertemplate="<b>%{text}</b><extra></extra>",
-            )
-        )
-
-
-    fig_3d.update_layout(
-        title=dict(
-            text=f"Clustering 3D de alcaldías (K = {K_OPTIMO})",
-            font=dict(color="white", size=18),
-            x=0.5
-        ),
+    # FONDO BLANCO Y MEJORA VISUAL PLOTLY
+    fig_alc.update_layout(
         height=600,
-        margin=dict(l=0, r=0, t=60, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
+        template="plotly_white", # <--- TEMA CLARO
         scene=dict(
-            bgcolor="#FFFFFF",
-            aspectmode="cube",
-            xaxis=dict(
-                title="Total cámaras instaladas",
-                backgroundcolor="#FFFFFF",
-                gridcolor="#E0E0E0",
-                showbackground=True,
-                zerolinecolor="#BEBEBE",
-                color="black",
-                range=x_range,
-            ),
-            yaxis=dict(
-                title="Delitos por 10k Hab.",
-                backgroundcolor="#FFFFFF",
-                gridcolor="#E0E0E0",
-                showbackground=True,
-                zerolinecolor="#BEBEBE",
-                color="black",
-                range=y_range,
-            ),
-            zaxis=dict(
-                title=Z_COL,
-                backgroundcolor="#FFFFFF",
-                gridcolor="#E0E0E0",
-                showbackground=True,
-                zerolinecolor="#BEBEBE",
-                color="black",
-                range=z_range,
-            ),
-            camera=dict(
-                eye=dict(x=1.6, y=1.6, z=1.2)
-            ),
+            xaxis_title="Cámaras/10k",
+            yaxis_title="Delitos/10k",
+            zaxis_title="IDS",
+            bgcolor="white", # <--- FONDO ESCENA BLANCO
+            xaxis=dict(backgroundcolor="white", gridcolor="#E0E0E0", showbackground=True, color="black"),
+            yaxis=dict(backgroundcolor="white", gridcolor="#E0E0E0", showbackground=True, color="black"),
+            zaxis=dict(backgroundcolor="white", gridcolor="#E0E0E0", showbackground=True, color="black"),
         ),
-        legend=dict(
-            bgcolor="rgba(0,0,0,0)",
-            font=dict(color="white"),
-        ),
+        margin=dict(l=0, r=0, b=0, t=30),
+        paper_bgcolor="white" # <--- FONDO PAPEL BLANCO
     )
 
-    with col_chart_3d:
-        st.markdown("#### Distribución 3D de alcaldías por cámaras, delitos e IDS")
-        st.plotly_chart(fig_3d, use_container_width=True)
+    with col_c3d_alc:
+        st.plotly_chart(fig_alc, use_container_width=True)
 
 
-st.markdown("---")
-st.subheader("Alcaldías por grupos")
-st.dataframe(tabla_clusters_3d, use_container_width=True)
+# ==============================================================================
+# PESTAÑA 2: CLUSTERING DE COLONIAS
+# ==============================================================================
+with tab_colonias:
+    st.subheader("Perfiles de Colonias (Escala Logarítmica)")
+    
+
+    X_VAR, Y_VAR, Z_VAR = "ue_por_1k_log", "delitos_por_1k_log", "alumbrado_por_1k_log"
+    LABELS = {X_VAR: "UE (Log)", Y_VAR: "Delitos (Log)", Z_VAR: "Alumbrado (Log)"}
+
+    # --- Carga de datos Colonias ---
+    try:
+        df_col = pd.read_csv("bases_de_datos/resultados_colonias_clusters.csv")
+        cent_col = pd.read_csv("bases_de_datos/centroides_valores_reales.csv")
+    except FileNotFoundError:
+        st.error("⚠️ Faltan los archivos CSV en 'bases_de_datos/'.")
+        st.stop()
+
+    if "cluster_kmeans" in df_col.columns:
+        df_col.rename(columns={"cluster_kmeans": "cluster"}, inplace=True)
+    
+    df_col["cluster_str"] = df_col["cluster"].astype(str)
+    cent_col["cluster_str"] = cent_col["cluster"].astype(str)
+    cent_col["label"] = "C" + cent_col["cluster_str"]
+
+    domain_col = sorted(df_col["cluster_str"].unique())
+
+    # --- Filtros 2D Colonias ---
+    col_f2d_col, col_c2d_col = st.columns([1, 3])
+    with col_f2d_col:
+        st.markdown("#### Filtros")
+        opts_col = ["Todos"] + [f"C{c}" for c in sorted(df_col["cluster"].unique())]
+        sel_col_2d = st.selectbox("Clúster:", options=opts_col, key="sel_col_log_2d")
+
+    if sel_col_2d == "Todos":
+        df_p_col = df_col.copy()
+        c_p_col = cent_col.copy()
+    else:
+        n_cc = int(sel_col_2d.replace("C", ""))
+        df_p_col = df_col[df_col["cluster"] == n_cc].copy()
+        c_p_col = cent_col[cent_col["cluster"] == n_cc].copy()
+
+    # --- Gráfica Altair Colonias ---
+    base_col = alt.Chart(df_p_col).mark_circle(size=80, opacity=0.7).encode(
+        x=alt.X(f"{X_VAR}:Q", title=LABELS[X_VAR]),
+        y=alt.Y(f"{Y_VAR}:Q", title=LABELS[Y_VAR]),
+        color=alt.Color(
+            "cluster_str:N", 
+            scale=alt.Scale(domain=domain_col, range=CLUSTER_COLORS), 
+            legend=None
+        ),
+        tooltip=["colonia_hog", "alcaldia", f"{X_VAR}", f"{Y_VAR}", "cluster_str"]
+    )
+    
+    pt_cent_col = alt.Chart(c_p_col).mark_point(size=250, shape="diamond", filled=True, color="black").encode(
+        x=f"{X_VAR}:Q", y=f"{Y_VAR}:Q", tooltip=["label"]
+    )
+    
+    lbl_cent_col = alt.Chart(c_p_col).mark_text(dy=-20, fontSize=14, fontWeight="bold", color="black").encode(
+        x=f"{X_VAR}:Q", y=f"{Y_VAR}:Q", text="label"
+    )
+
+    chart_col = (base_col + pt_cent_col + lbl_cent_col).properties(
+        height=500, title="Distribución de Clusters (Espacio Logarítmico)"
+    ).configure(
+        background='white' # <--- FONDO BLANCO ALTAIR
+    ).configure_axis(
+        gridColor='#E0E0E0', labelColor='black', titleColor='black'
+    ).configure_view(
+        strokeWidth=0
+    ).interactive()
+
+    with col_c2d_col:
+        st.altair_chart(chart_col, use_container_width=True)
+
+    # --- Vista 3D Colonias ---
+    st.markdown("---")
+    
+    col_f3d_col, col_c3d_col = st.columns([1, 3])
+    with col_f3d_col:
+        st.markdown("#### Vista 3D")
+        sel_col_3d = st.selectbox("Resaltar Clúster 3D:", options=opts_col, key="sel_col_log_3d")
+
+    if sel_col_3d == "Todos":
+        df_3d_c = df_col.copy()
+        cent_3d_c = cent_col.copy()
+    else:
+        n_cc3 = int(sel_col_3d.replace("C", ""))
+        df_3d_c = df_col[df_col["cluster"] == n_cc3].copy()
+        cent_3d_c = cent_col[cent_col["cluster"] == n_cc3].copy()
+
+    fig_col = go.Figure()
+
+    color_map_3d_col = {int(c): CLUSTER_COLORS[i] for i, c in enumerate(domain_col) if i < len(CLUSTER_COLORS)}
+
+    for c in sorted(df_3d_c["cluster"].unique()):
+        sub_c = df_3d_c[df_3d_c["cluster"] == c]
+        fig_col.add_trace(go.Scatter3d(
+            x=sub_c[X_VAR], y=sub_c[Y_VAR], z=sub_c[Z_VAR],
+            mode="markers",
+            marker=dict(size=5, color=color_map_3d_col.get(int(c), "#999"), opacity=0.8, line=dict(width=0.5, color='white')),
+            name=f"C{c}", text=sub_c["colonia_hog"],
+            hovertemplate="<b>%{text}</b><br>X (Log): %{x:.2f}<br>Y (Log): %{y:.2f}<br>Z (Log): %{z:.2f}"
+        ))
+
+    fig_col.add_trace(go.Scatter3d(
+        x=cent_3d_c[X_VAR], y=cent_3d_c[Y_VAR], z=cent_3d_c[Z_VAR],
+        mode="markers+text", marker=dict(size=10, color="black", symbol="diamond"),
+        text=cent_3d_c["label"], textposition="top center", name="Centros"
+    ))
+
+    # FONDO BLANCO Y MEJORA VISUAL PLOTLY
+    fig_col.update_layout(
+        height=600,
+        template="plotly_white", # <--- TEMA CLARO
+        scene=dict(
+            xaxis_title=LABELS[X_VAR],
+            yaxis_title=LABELS[Y_VAR],
+            zaxis_title=LABELS[Z_VAR],
+            bgcolor="white", # <--- FONDO ESCENA BLANCO
+            xaxis=dict(backgroundcolor="white", gridcolor="#E0E0E0", showbackground=True, color="black"),
+            yaxis=dict(backgroundcolor="white", gridcolor="#E0E0E0", showbackground=True, color="black"),
+            zaxis=dict(backgroundcolor="white", gridcolor="#E0E0E0", showbackground=True, color="black"),
+        ),
+        margin=dict(l=0, r=0, b=0, t=30),
+        paper_bgcolor="white" # <--- FONDO PAPEL BLANCO
+    )
+
+    with col_c3d_col:
+        st.plotly_chart(fig_col, use_container_width=True)
