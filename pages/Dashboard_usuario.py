@@ -76,7 +76,7 @@ tam_filtros = st.sidebar.number_input(
     "Tamaño texto filtros",
     min_value=10,
     max_value=30,
-    value=14,      
+    value=17,      
     step=1,
     key="tam_filtros_usuario_new"
 )
@@ -395,7 +395,7 @@ with cols_kpis_total[0]:
     label_total = f"Total de incidentes" #Nombre que se va a mostrar en total incidentes
     delta_class = "delta-inverse" if is_positive else "delta-normal"  #Si es positivo es verde si es opuesto es rojo
 
-    st.markdown(f""" #Pintamos la tarjeta con la estructura html
+    st.markdown(f"""
         <div class="kpi-card">
             <div class="kpi-label">{label_total}</div>
             <div class="kpi-value">{total_incidentes:,.0f}</div>
