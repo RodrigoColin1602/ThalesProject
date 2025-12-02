@@ -312,14 +312,23 @@ else:
 
     # ============================
     # MAPA DE PREDICCIONES
-    # Agregado para el subset filtrado
+    # ============================
+    
+    # 1. Agrupación avanzada: Promedio del valor Y lista de delitos únicos
+    # Usamos .agg() para aplicar funciones diferentes a cada columna
     df_pred_agg = (
         df_pred_filtro
-        .groupby("cell_id", as_index=False)[variable_sel]
-        .mean()
+        .groupby("cell_id", as_index=False)
+        .agg({
+            variable_sel: "mean",                                  # Promedio del score/conteo
+            "delito": lambda x: ", ".join(sorted(x.unique()))      # Lista de delitos separados por coma
+        })
     )
+    
+    # Renombramos la columna 'delito' para que se vea claro en el código
+    df_pred_agg.rename(columns={"delito": "lista_delitos"}, inplace=True)
 
-    #Union de cuadrantes con predicciones
+    # Unión de cuadrantes con predicciones
     gdf_pred = gdf_cuadrantes.merge(
         df_pred_agg,
         left_on="id",
@@ -330,22 +339,17 @@ else:
     if gdf_pred.empty:
         st.info("No hay cuadrantes con geometría para esas predicciones.")
     else:
-        df_pred_agg_global = (
-            df_pred_base
-            .groupby("cell_id", as_index=False)[variable_sel]
-            .mean()
-        )
-        # Rango global para colores
+        # Calcular rangos globales para el color (igual que antes)
+        df_pred_agg_global = df_pred_base.groupby("cell_id", as_index=False)[variable_sel].mean()
         vmin = df_pred_agg_global[variable_sel].min()
         vmax = df_pred_agg_global[variable_sel].max()
-        if vmin == vmax:
-            vmax = vmin + 1e-6
+        if vmin == vmax: vmax = vmin + 1e-6
 
-        datetime_cols = gdf_pred.select_dtypes(
-            include=["datetime64[ns]", "datetime64[ns, UTC]"]
-        ).columns
+        # Formato de fechas para evitar errores en el GeoJSON
+        datetime_cols = gdf_pred.select_dtypes(include=["datetime64[ns]", "datetime64[ns, UTC]"]).columns
         for c in datetime_cols:
             gdf_pred[c] = gdf_pred[c].dt.strftime("%Y-%m-%d")
+
         # Centro del mapa
         centro_pred = gdf_pred.geometry.unary_union.centroid
         centro_lat_pred = centro_pred.y
@@ -357,13 +361,12 @@ else:
             tiles="CartoDB positron"
         )
 
-        # Capa base
+        # Capa base (Sectores)
         tooltip_base = folium.GeoJsonTooltip(
             fields=["id", "alcaldia", "zona", "sector", "no_region", "no_cuadran"],
             aliases=["ID:", "Alcaldía:", "Zona:", "Sector:", "Región:", "Cuadrante:"],
             sticky=True
         )
-        # Capa de cuadrantes
         folium.GeoJson(
             gdf_cuadrantes.to_json(),
             name="Sectores de patrullaje",
@@ -376,27 +379,31 @@ else:
             },
         ).add_to(mapa_pred)
 
-        # Capa de predicciones
+        # Configuración del ColorMap
         colormap = cm.linear.YlOrRd_09.scale(vmin, vmax)
-
-        etiqueta_delito = (
-            "Todos los delitos" if delito_sel == "Todos los delitos" else delito_sel
-        )
-
+        etiqueta_delito = "Todos los delitos" if delito_sel == "Todos los delitos" else delito_sel
+        
         if celda_sel != "Todos los cuadrantes":
             extra_celda = f" - Cuadrante {celda_sel}"
         else:
             extra_celda = ""
+        
+        colormap.caption = f"Nivel de riesgo ({variable_sel}) - {etiqueta_delito} - {nombre_mes_sel} {anio_sel}{extra_celda}"
 
-        colormap.caption = (
-            f"Nivel de riesgo ({'score' if variable_sel == 'score' else 'conteo esperado'}) "
-            f"- {etiqueta_delito} - {nombre_mes_sel} {anio_sel}{extra_celda}"
-        )
-
+        # --- CAMBIO CLAVE EN EL TOOLTIP ---
+        # Ahora mostramos 'lista_delitos' que contiene los delitos reales del cuadrante
         tooltip_pred = folium.GeoJsonTooltip(
-            fields=["id", "alcaldia", "zona", "sector", variable_sel],
-            aliases=["ID:", "Alcaldía:", "Zona:", "Sector:", "Predicción (promedio mensual):"],
-            sticky=True
+            fields=["id", "alcaldia", "zona", "sector", "lista_delitos", variable_sel],
+            aliases=["ID:", "Alcaldía:", "Zona:", "Sector:", "Delitos previstos:", "Predicción:"],
+            sticky=True,
+            style="""
+                background-color: #F0F0F0; 
+                border: 1px solid black; 
+                border-radius: 3px; 
+                box-shadow: 3px 3px 3px rgba(0,0,0,0.2);
+                max-width: 300px;  /* Limitamos el ancho para que la lista no se salga */
+                font-size: 12px;
+            """
         )
 
         folium.GeoJson(

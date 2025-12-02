@@ -101,11 +101,14 @@ PALETA_IDS = {
 
 CLUSTER_COLORS = list(PALETA_IDS.values())
 
-# --- DICCIONARIO PARA ALCALDÍAS ---
+#====================
+# DICCIONARIO PARA ALCALDÍAS (5 CLUSTERS)
 INFO_ALCALDIAS = {
-    0: {"titulo": "Muy Bajo (C0)", "desc": "Zonas con mínima incidencia delictiva, usualmente baja densidad comercial o zonas periféricas.", "color": PALETA_IDS["Muy bajo"]},
-    1: {"titulo": "Bajo (C1)", "desc": "Áreas mayormente residenciales con actividad comercial moderada e incidencia delictiva controlada.", "color": PALETA_IDS["Bajo"]},
-    2: {"titulo": "Medio (C2)", "desc": "Zonas de transición o mixtas. Equilibrio entre vivienda y comercio, con niveles promedio de delitos.", "color": PALETA_IDS["Medio"]}
+    0: {"titulo": "Muy Bajo (C0)", "desc": "Zonas periféricas o de muy baja densidad comercial. Incidencia mínima.", "color": "#808080"},
+    1: {"titulo": "Bajo (C1)", "desc": "Áreas residenciales tranquilas. Actividad comercial moderada.", "color": "#57A5F8"},
+    2: {"titulo": "Medio (C2)", "desc": "Zonas de transición (mixtas). Equilibrio entre vivienda y comercio.", "color": "#041A88"},
+    3: {"titulo": "Alto (C3)", "desc": "Corredores comerciales importantes. Alta afluencia y actividad económica.", "color": "#0929C8"},
+    4: {"titulo": "Muy Alto (C4)", "desc": "Hotspots críticos. Máxima concentración de delitos y población flotante.", "color": "#5255FC"}
 }
 
 # --- DICCIONARIO PARA COLONIAS ---
@@ -137,10 +140,8 @@ st.markdown("---")
 
 # ==========================================
 # 3. CREACIÓN DE PESTAÑAS
-# ==========================================
 tab_alcaldias, tab_colonias = st.tabs(["Alcaldías", "Nivel Colonias"])
 
-# Helper para mostrar tarjetas informativas (descripciones)
 def mostrar_tarjetas_informativas(info_dict):
     for i in range(len(info_dict)):
         info = info_dict.get(i)
@@ -163,7 +164,7 @@ def mostrar_tarjetas_informativas(info_dict):
 
 # ==============================================================================
 # PESTAÑA 1: CLUSTERING DE ALCALDÍAS
-# ==============================================================================
+
 with tab_alcaldias:
     st.subheader("Perfiles de Alcaldías (Cámaras vs. Delitos vs. IDS)")
     mostrar_tarjetas_informativas(INFO_ALCALDIAS)
@@ -264,12 +265,9 @@ with tab_alcaldias:
 
 # ==============================================================================
 # PESTAÑA 2: CLUSTERING DE COLONIAS
-# ==============================================================================
 with tab_colonias:
     st.subheader("Perfiles de Colonias ")
     
-    # MOSTRAR TARJETAS GENERALES (BLANCAS)
-  
     X_VAR, Y_VAR, Z_VAR = "ue_por_1k_log", "delitos_por_1k_log", "alumbrado_por_1k_log"
     LABELS = {X_VAR: "UE (Log)", Y_VAR: "Delitos (Log)", Z_VAR: "Alumbrado (Log)"}
 
@@ -296,10 +294,9 @@ with tab_colonias:
         sel_col_2d = st.selectbox("Clúster:", options=opts_col, key="sel_col_log_2d")
 
     # ====================================================================
-    # 🆕 LÓGICA DINÁMICA DE TARJETAS AZULES (KPIs) 🆕
-    # ====================================================================
+    # LÓGICA DINÁMICA DE TARJETAS AZULES 
     if sel_col_2d != "Todos":
-        # Extraemos el número del cluster (ej: "C0" -> 0)
+        # Extraemos el número del cluster 
         n_cluster_sel = int(sel_col_2d.replace("C", ""))
         
         # Obtenemos los datos del diccionario
