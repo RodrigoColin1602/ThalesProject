@@ -104,7 +104,7 @@ with col_buttons:
     #Columna para el boton de chatbot
     with col_chatbot:
         if st.button("Chatbot", key="chatbot_btn"):
-             st.switch_page("pages/Chatbot.py") # Asegúrate que la ruta y nombre coincida
+             st.switch_page("pages/Chatbot.py") #
     #Columna para el boton de login
     with col_login:
         # Este botón ya no hace switch, solo queda como UI

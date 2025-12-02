@@ -20,21 +20,30 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
     st.warning("Acceso restringido. Por favor inicia sesión desde la página principal.")
     st.stop()
 
-#Solamente acceden usuarios con rol 'analyst'
+# Solamente acceden usuarios con rol 'analyst'
 if st.session_state["role"] not in ["analyst"]:
     st.error(" No tienes permiso para acceder a este módulo.")
     st.stop()
 
-col_header, col_btn_logout = st.columns([5, 1])
+# ======================================
+# ENCABEZADO CON BOTONES
+col_header, col_btn_chat, col_btn_logout = st.columns([6, 1, 1])
 
 with col_header:
     st.title("Mapa de predicciones de robos por cuadrante CDMX")
 
+with col_btn_chat:
+    # Botón para ir al Chatbot
+    if st.button("Chatbot", use_container_width=True, key="nav_chatbot_policia"):
+        st.switch_page("pages/Chatbot.py")
+
 with col_btn_logout:
+    # Botón para cerrar sesión
     if st.button("Cerrar sesión", use_container_width=True, key="logout_policia"):
         st.session_state.clear()
         st.switch_page("menu_inicio.py")
 
+# ======================================
 
 # CARGA Y PREPARACIÓN DE DATOS
 @st.cache_data
@@ -64,11 +73,11 @@ def load_predicciones(path_csv: str):
     df = pd.read_csv(path_csv, parse_dates=["ds"])
     return df
 
-#Rutas de los archivos
+# Rutas de los archivos
 RUTA_CUADRANTES = "bases_de_datos/cuadrantes.csv"
 RUTA_PREDICCIONES = "bases_de_datos/predicciones_xgb.csv"
 
-#Cargar los mapas y predicciones
+# Cargar los mapas y predicciones
 try:
     gdf_cuadrantes = load_cuadrantes(RUTA_CUADRANTES)
 except FileNotFoundError:
