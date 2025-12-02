@@ -48,7 +48,7 @@ with top_right:
         st.session_state.clear()
         st.switch_page("pages/Login.py")
 
-st.title("Análisis de Clustering: Segmentación Territorial")
+st.title("Análisis de agrupación por alcaldias y colonias")
 st.markdown("---")
 
 # ==========================================
