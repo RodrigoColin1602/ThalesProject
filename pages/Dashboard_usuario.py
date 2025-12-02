@@ -848,7 +848,7 @@ with col_map: #Columna donde se va a mapear el mapa
     if df_mapa.empty:
         st.info("No hay datos para el filtro seleccionado (año / mes / tipo de robo).")
     else:
-        MAX_PUNTOS = 3000 #Cantidad de puntos mostrados en el mapa 
+        MAX_PUNTOS = 150 #Cantidad de puntos mostrados en el mapa 
         if len(df_mapa) > MAX_PUNTOS:
             df_mapa_sample = df_mapa.sample(MAX_PUNTOS, random_state=42)
         else:
